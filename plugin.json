@@ -1,0 +1,38 @@
+{
+  "id": "com.mattermost.plugin-bulk-user-delete",
+  "name": "Bulk User Delete Plugin",
+  "description": "This plugin can be used to completely purge groups of users from a Mattermost system.",
+  "homepage_url": "https://github.com/davidkrauser/mattermost-plugin-bulk-user-delete",
+  "support_url": "https://github.com/davidkrauser/mattermost-plugin-bulk-user-delete/issues",
+  "icon_path": "assets/starter-template-icon.svg",
+  "min_server_version": "6.2.1",
+  "server": {
+    "executables": {
+      "linux-amd64": "server/dist/plugin-linux-amd64",
+      "linux-arm64": "server/dist/plugin-linux-arm64",
+      "darwin-amd64": "server/dist/plugin-darwin-amd64",
+      "darwin-arm64": "server/dist/plugin-darwin-arm64",
+      "windows-amd64": "server/dist/plugin-windows-amd64.exe"
+    }
+  },
+  "settings_schema": {
+    "header": "",
+    "footer": "",
+    "settings": [
+      {
+        "key": "TargetEmailAddressSuffixesCSV",
+        "display_name": "Email suffixes to match (comma-separated list):",
+        "type": "longtext",
+        "help_text": "Users with email addresses that contain a suffix from this list will be purged from the system.",
+        "default": ""
+      },
+      {
+        "key": "TargetEmailAddressesCSV",
+        "display_name": "Exact email addresses to match (comma-separated list):",
+        "type": "longtext",
+        "help_text": "Users with email addresses that match from this list exactly will be purged from the system.",
+        "default": ""
+      }
+    ]
+  }
+}
