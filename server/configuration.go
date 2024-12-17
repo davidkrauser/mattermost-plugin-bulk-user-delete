@@ -2,6 +2,7 @@ package main
 
 import (
 	"reflect"
+	"strings"
 
 	"github.com/pkg/errors"
 )
@@ -18,6 +19,9 @@ import (
 // If you add non-reference types to your configuration struct, be sure to rewrite Clone as a deep
 // copy appropriate for your types.
 type configuration struct {
+	TargetInactiveUsersOnly       bool
+	TargetEmailAddressSuffixesCSV string
+	TargetEmailAddressesCSV       string
 }
 
 // Clone shallow copies the configuration. Your implementation may require a deep copy if
@@ -25,6 +29,25 @@ type configuration struct {
 func (c *configuration) Clone() *configuration {
 	var clone = *c
 	return &clone
+}
+
+func (c *configuration) TargetEmailAddressSuffixes() []string {
+	return parseCSVLine(c.TargetEmailAddressSuffixesCSV)
+}
+
+func (c *configuration) TargetEmailAddresses() []string {
+	return parseCSVLine(c.TargetEmailAddressesCSV)
+}
+
+func parseCSVLine(line string) []string {
+	var elems []string
+	for _, elem := range strings.Split(line, ",") {
+		trimmedElem := strings.TrimSpace(elem)
+		if len(trimmedElem) != 0 {
+			elems = append(elems, trimmedElem)
+		}
+	}
+	return elems
 }
 
 // getConfiguration retrieves the active configuration under lock, making it safe to use
