@@ -6,7 +6,7 @@ import (
 	"github.com/mattermost/mattermost/server/public/model"
 )
 
-func Test_shouldDelete(t *testing.T) {
+func Test_emailMatches(t *testing.T) {
 	tests := []struct {
 		description       string
 		userEmail         string
@@ -58,7 +58,7 @@ func Test_shouldDelete(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.description, func(t *testing.T) {
 			user := model.User{Email: test.userEmail}
-			got := shouldDelete(&user, test.targetSuffixes, test.targetExactEmails)
+			got := emailMatches(&user, test.targetSuffixes, test.targetExactEmails)
 			if got != test.expected {
 				t.Errorf("expected: '%t', got: '%t'", test.expected, got)
 			}

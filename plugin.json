@@ -20,13 +20,6 @@
     "footer": "",
     "settings": [
       {
-        "key": "TargetInactiveUsersOnly",
-        "display_name": "Purge only deactived users:",
-        "type": "bool",
-        "help_text": "If set to true, only matching deactivated users will be purged from the system. If false, all matching users will be purged.",
-        "default": true
-      },
-      {
         "key": "TargetEmailAddressSuffixesCSV",
         "display_name": "Email suffixes to match (comma-separated list):",
         "type": "longtext",
