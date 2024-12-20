@@ -100,7 +100,7 @@ func (p *Plugin) ExecuteCommand(_ *plugin.Context, args *model.CommandArgs) (*mo
 	}
 
 	config := p.getConfiguration()
-	usersToDelete := filterForUsersByEmails(users, config.TargetEmailAddressSuffixes(), config.TargetEmailAddresses())
+	usersToDelete := filterForUsersByEmails(p.pluginClient, users, config.TargetEmailAddressSuffixes(), config.TargetEmailAddresses())
 
 	if len(usersToDelete) == 0 {
 		return &model.CommandResponse{
