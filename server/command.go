@@ -10,33 +10,33 @@ import (
 	"github.com/mattermost/mattermost/server/public/pluginapi"
 )
 
-const TRIGGER = "bulk-user-delete"
-const USAGE = "[mode] [target users]"
+const Trigger = "bulk-user-delete"
+const Usage = "[mode] [target users]"
 
-const MODE_DRYRUN = "dry-run"
-const MODE_LIVE = "live"
+const ModeDryRun = "dry-run"
+const ModeLive = "live"
 
-const USERS_INACTIVE = "inactive"
-const USERS_ALL = "all"
+const UsersInactive = "inactive"
+const UsersAll = "all"
 
 func registerSlashCommand(client *pluginapi.Client) error {
-	autocompleteData := model.NewAutocompleteData(TRIGGER, USAGE, "")
+	autocompleteData := model.NewAutocompleteData(Trigger, Usage, "")
 	autocompleteData.AddStaticListArgument("mode", true, []model.AutocompleteListItem{{
-		Item:     MODE_DRYRUN,
+		Item:     ModeDryRun,
 		HelpText: "Simulate a bulk deletion. This will not change any data.",
 	}, {
-		Item:     MODE_LIVE,
+		Item:     ModeLive,
 		HelpText: "Perform a bulk deletion. This will change data.",
 	}})
 	autocompleteData.AddStaticListArgument("target users", true, []model.AutocompleteListItem{{
-		Item:     USERS_INACTIVE,
+		Item:     UsersInactive,
 		HelpText: "Only delete matching inactive users.",
 	}, {
-		Item:     USERS_ALL,
+		Item:     UsersAll,
 		HelpText: "Delete all matching users.",
 	}})
 	return client.SlashCommand.Register(&model.Command{
-		Trigger:          TRIGGER,
+		Trigger:          Trigger,
 		AutoComplete:     true,
 		AutocompleteData: autocompleteData,
 	})
@@ -45,10 +45,10 @@ func registerSlashCommand(client *pluginapi.Client) error {
 func validateUser(client *pluginapi.Client, userid string) error {
 	user, err := client.User.Get(userid)
 	if err != nil {
-		return fmt.Errorf("Could not retrieve running user context: %s", err.Error())
+		return fmt.Errorf("could not retrieve running user context: %s", err.Error())
 	}
 	if !user.IsInRole(model.SystemAdminRoleId) {
-		return fmt.Errorf("Only system administrators can run this command.")
+		return fmt.Errorf("only system administrators can run this command")
 	}
 	return nil
 }
@@ -56,16 +56,16 @@ func validateUser(client *pluginapi.Client, userid string) error {
 func validateCommand(command string) error {
 	fields := strings.Fields(command)
 	if len(fields) != 3 {
-		return fmt.Errorf("Missing argument. Usage: %s /%s", TRIGGER, USAGE)
+		return fmt.Errorf("missing argument. Usage: %s /%s", Trigger, Usage)
 	}
-	if fields[0] != "/"+TRIGGER {
-		return fmt.Errorf("Invalid command. Usage: %s /%s", TRIGGER, USAGE)
+	if fields[0] != "/"+Trigger {
+		return fmt.Errorf("invalid command. Usage: %s /%s", Trigger, Usage)
 	}
-	if fields[1] != MODE_DRYRUN && fields[1] != MODE_LIVE {
-		return fmt.Errorf("Invalid mode. Must be '%s' or '%s'", MODE_DRYRUN, MODE_LIVE)
+	if fields[1] != ModeDryRun && fields[1] != ModeLive {
+		return fmt.Errorf("invalid mode. Must be '%s' or '%s'", ModeDryRun, ModeLive)
 	}
-	if fields[2] != USERS_INACTIVE && fields[2] != USERS_ALL {
-		return fmt.Errorf("Invalid target users. Must be '%s' or '%s'", USERS_INACTIVE, USERS_ALL)
+	if fields[2] != UsersInactive && fields[2] != UsersAll {
+		return fmt.Errorf("invalid target users. Must be '%s' or '%s'", UsersInactive, UsersAll)
 	}
 	return nil
 }
@@ -88,8 +88,8 @@ func (p *Plugin) ExecuteCommand(_ *plugin.Context, args *model.CommandArgs) (*mo
 	}
 
 	fields := strings.Fields(args.Command)
-	dryRun := fields[1] == MODE_DRYRUN
-	targetInactiveUsersOnly := fields[2] == USERS_INACTIVE
+	dryRun := fields[1] == ModeDryRun
+	targetInactiveUsersOnly := fields[2] == UsersInactive
 
 	users, err := getUsers(p.pluginClient, targetInactiveUsersOnly)
 	if err != nil {
@@ -105,7 +105,7 @@ func (p *Plugin) ExecuteCommand(_ *plugin.Context, args *model.CommandArgs) (*mo
 	if len(usersToDelete) == 0 {
 		return &model.CommandResponse{
 			ResponseType: model.CommandResponseTypeEphemeral,
-			Text:         fmt.Sprintf("There's nothing to do - there are no matching users to delete."),
+			Text:         "There's nothing to do - there are no matching users to delete.",
 		}, nil
 	}
 
