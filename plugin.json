@@ -5,14 +5,11 @@
   "homepage_url": "https://github.com/davidkrauser/mattermost-plugin-bulk-user-delete",
   "support_url": "https://github.com/davidkrauser/mattermost-plugin-bulk-user-delete/issues",
   "icon_path": "assets/starter-template-icon.svg",
+  "version": "0.0.1",
   "min_server_version": "6.2.1",
   "server": {
     "executables": {
-      "linux-amd64": "server/dist/plugin-linux-amd64",
-      "linux-arm64": "server/dist/plugin-linux-arm64",
-      "darwin-amd64": "server/dist/plugin-darwin-amd64",
-      "darwin-arm64": "server/dist/plugin-darwin-arm64",
-      "windows-amd64": "server/dist/plugin-windows-amd64.exe"
+      "linux-amd64": "server/dist/plugin-linux-amd64"
     }
   },
   "settings_schema": {
