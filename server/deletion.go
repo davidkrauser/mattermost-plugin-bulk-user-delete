@@ -104,7 +104,7 @@ func purgeDanglingUserPosts(db *sql.DB, userID string) error {
 			return fmt.Errorf("error when trying to delete user thread memberships: %s", err.Error())
 		}
 
-		queryString, args, err = sq.Delete("Reactions").
+		deleteReactionsQueryString, deleteReactionsArgs, err := sq.Delete("Reactions").
 			Where(sq.Eq{"postid": ids}).
 			PlaceholderFormat(sq.Dollar).
 			ToSql()
@@ -112,7 +112,7 @@ func purgeDanglingUserPosts(db *sql.DB, userID string) error {
 			return fmt.Errorf("error when trying to select user posts: %s", err.Error())
 		}
 
-		_, err = tx.Exec(queryString, args...)
+		_, err = tx.Exec(deleteReactionsQueryString, deleteReactionsArgs...)
 		if err != nil {
 			return fmt.Errorf("error when trying to delete user post reactions: %s", err.Error())
 		}
