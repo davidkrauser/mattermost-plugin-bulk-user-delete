@@ -15,13 +15,13 @@ import (
 
 func purgeUsers(db *sql.DB, pluginClient *pluginapi.Client, socketClient *model.Client4, users []*model.User, reportProgress func(int)) error {
 	for i, user := range users {
-		// resp, err := socketClient.PermanentDeleteUser(context.Background(), user.Id)
-		// if err != nil {
-		// 	return err
-		// }
-		// if resp.StatusCode != http.StatusOK {
-		// 	return fmt.Errorf("%d status code during attempt to delete user %s", resp.StatusCode, user.Email)
-		// }
+		resp, err := socketClient.PermanentDeleteUser(context.Background(), user.Id)
+		if err != nil {
+			return err
+		}
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("%d status code during attempt to delete user %s", resp.StatusCode, user.Email)
+		}
 		// There's a bug in `PermanentDeleteUser` that could result in
 		// some user posts not getting deleted. So we go in after to
 		// make sure all posts tied to this user are removed.
