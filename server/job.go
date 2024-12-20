@@ -36,13 +36,13 @@ func (p *Plugin) runBulkDeleteJob(dryRun bool, runningUserID string, runningChan
 	if err != nil {
 		p.pluginClient.Log.Error("Could not determine if bulk delete job is already running. Aborting...", "error", err)
 		reportError(p.pluginClient, statusPost, fmt.Errorf(
-			"could not determine if a bulk delete job is already running. Aborting: %s", err.Error()))
+			"could not determine if a bulk delete job is already running. Aborting: %s", err.Error()), userCount, 0)
 		return
 	}
 	if !set {
 		p.pluginClient.Log.Info("Bulk delete job is already running. Aborting...")
 		reportError(p.pluginClient, statusPost, fmt.Errorf(
-			"bulk delete job is already running - aborting"))
+			"bulk delete job is already running - aborting"), userCount, 0)
 		return
 	}
 
@@ -72,7 +72,7 @@ func (p *Plugin) runBulkDeleteJob(dryRun bool, runningUserID string, runningChan
 	if err != nil {
 		p.pluginClient.Log.Error("Could not cleanup job status after run.", "error", err)
 		reportError(p.pluginClient, statusPost, fmt.Errorf(
-			"could not clean up job status after run: %s", err.Error()))
+			"could not clean up job status after run: %s", err.Error()), userCount, userCount)
 		return
 	}
 }
@@ -82,15 +82,15 @@ func bulkDelete(pluginClient *pluginapi.Client, socketClient *model.Client4, sta
 	if err != nil {
 		pluginClient.Log.Error("Error accessing database", "error", err)
 		reportError(pluginClient, statusPost, fmt.Errorf(
-			"error accessing database to find empty channels: %s", err.Error()))
+			"error accessing database to find empty channels: %s", err.Error()), len(usersToDelete), 0)
 		return false
 	}
 
 	// Delete the specified users and all related user data.
-	if err := purgeUsers(db, pluginClient, socketClient, usersToDelete, reportProgress); err != nil {
+	if count, err := purgeUsers(db, pluginClient, socketClient, usersToDelete, reportProgress); err != nil {
 		pluginClient.Log.Error("Error deleting users", "error", err)
 		reportError(pluginClient, statusPost, fmt.Errorf(
-			"error deleting users: %s", err.Error()))
+			"error deleting users: %s", err.Error()), len(usersToDelete), count)
 		return false
 	}
 
@@ -98,7 +98,7 @@ func bulkDelete(pluginClient *pluginapi.Client, socketClient *model.Client4, sta
 	// channels that previously had users in them - we just deleted them.
 	if err := purgeEmptyChannels(db, pluginClient, socketClient); err != nil {
 		pluginClient.Log.Error("Error deleting empty channels", "error", err)
-		reportError(pluginClient, statusPost, fmt.Errorf("error deleting empty channels: %s", err.Error()))
+		reportError(pluginClient, statusPost, fmt.Errorf("error deleting empty channels: %s", err.Error()), len(usersToDelete), len(usersToDelete))
 		return false
 	}
 
@@ -106,8 +106,8 @@ func bulkDelete(pluginClient *pluginapi.Client, socketClient *model.Client4, sta
 	return true
 }
 
-func reportError(pluginClient *pluginapi.Client, statusPost *model.Post, err error) {
-	statusPost.Message = fmt.Sprintf("### Bulk user deletion job failed!\n%s", err.Error())
+func reportError(pluginClient *pluginapi.Client, statusPost *model.Post, err error, totalDeletionCount, currDeletionCount int) {
+	statusPost.Message = fmt.Sprintf("### Bulk user deletion job failed!\n%s\nDeleted %d/%d users.", err.Error(), currDeletionCount, totalDeletionCount)
 	if err := pluginClient.Post.UpdatePost(statusPost); err != nil {
 		pluginClient.Log.Error("Unable to update status post", "error", err)
 	}
