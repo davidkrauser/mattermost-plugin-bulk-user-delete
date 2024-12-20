@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/mattermost/mattermost/server/public/model"
 	"github.com/mattermost/mattermost/server/public/pluginapi"
@@ -44,7 +45,16 @@ func (p *Plugin) runBulkDeleteJob(dryRun bool, runningUserId string, runningChan
 		return
 	}
 
+	lastTime := time.Now()
 	if success := bulkDelete(p.pluginClient, p.socketClient, statusPost, usersToDelete, func(status int) {
+		currTime := time.Now()
+		elapsed := currTime.Sub(lastTime)
+		// Only update the status post once per second
+		if elapsed < time.Second {
+			return
+		}
+		lastTime = currTime
+
 		statusPost.Message = fmt.Sprintf("### Bulk user deletion job started\nDeleted %d/%d users...", status, userCount)
 		p.pluginClient.Post.UpdatePost(statusPost)
 	}); success {
