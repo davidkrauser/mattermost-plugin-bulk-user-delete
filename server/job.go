@@ -17,7 +17,7 @@ func (p *Plugin) runBulkDeleteJob(dryRun bool, runningUserId string, runningChan
 	}
 
 	if dryRun {
-		statusPost.Message = fmt.Sprintf("### (DRY RUN) Bulk user deletion job finished\nDeleted %d users", userCount)
+		statusPost.Message = fmt.Sprintf("### Bulk user deletion job finished\nDry-run targeted %d users", userCount)
 		p.pluginClient.Post.CreatePost(statusPost)
 		return
 	}
