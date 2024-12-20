@@ -5,26 +5,76 @@ import (
 
 	"github.com/mattermost/mattermost/server/public/model"
 	"github.com/mattermost/mattermost/server/public/pluginapi"
-	"github.com/mattermost/mattermost/server/public/pluginapi/cluster"
 )
 
-func runBulkDeleteJob(runLock *cluster.Mutex, pluginClient *pluginapi.Client, socketClient *model.Client4, runningUserId string, runningChannelId string, usersToDelete []*model.User) {
-	// Ensure only one job runs at a time
-	runLock.Lock()
-	defer runLock.Unlock()
+func (p *Plugin) runBulkDeleteJob(dryRun bool, runningUserId string, runningChannelId string, usersToDelete []*model.User, userListFileInfoId string) {
+	userCount := len(usersToDelete)
+	statusPost := &model.Post{
+		UserId:    runningUserId,
+		ChannelId: runningChannelId,
+		Message:   fmt.Sprintf("### Bulk user deletion job started\nDeleting %d users...", userCount),
+		FileIds:   model.StringArray{userListFileInfoId},
+	}
 
+	if dryRun {
+		statusPost.Message = fmt.Sprintf("### (DRY RUN) Bulk user deletion job finished\nDeleted %d users", userCount)
+		p.pluginClient.Post.CreatePost(statusPost)
+		return
+	}
+
+	if err := p.pluginClient.Post.CreatePost(statusPost); err != nil {
+		p.pluginClient.Log.Info("Bulk delete job unable to create status post. Aborting...")
+		reportError(p.pluginClient, statusPost, fmt.Errorf(
+			"A bulk delete job unable to create status post. Aborting..."))
+		return
+	}
+
+	// Check if a job is already running, and if not mark it running
+	set, err := p.pluginClient.KV.Set(RUNNINGKEY, true, pluginapi.SetAtomic(false))
+	if err != nil {
+		p.pluginClient.Log.Error("Could not determine if bulk delete job is already running. Aborting...", "error", err)
+		reportError(p.pluginClient, statusPost, fmt.Errorf(
+			"Could not determine if a bulk delete job is already running. Aborting: %s", err.Error()))
+		return
+	}
+	if !set {
+		p.pluginClient.Log.Info("Bulk delete job is already running. Aborting...")
+		reportError(p.pluginClient, statusPost, fmt.Errorf(
+			"A bulk delete job is already running. Aborting..."))
+		return
+	}
+
+	bulkDelete(p.pluginClient, p.socketClient, statusPost, usersToDelete, func(status int) {
+		statusPost.Message = fmt.Sprintf("### Bulk user deletion job started\nDeleted %d/%d users...", status, userCount)
+		p.pluginClient.Post.UpdatePost(statusPost)
+	})
+
+	// Set the job not running
+	_, err = p.pluginClient.KV.Set(RUNNINGKEY, false)
+	if err != nil {
+		p.pluginClient.Log.Error("Could not cleanup job status after run.", "error", err)
+		reportError(p.pluginClient, statusPost, fmt.Errorf(
+			"Could not clean up job status after run: %s", err.Error()))
+		return
+	}
+
+	statusPost.Message = fmt.Sprintf("### Bulk user deletion job finished\nDeleted %d users", userCount)
+	p.pluginClient.Post.UpdatePost(statusPost)
+}
+
+func bulkDelete(pluginClient *pluginapi.Client, socketClient *model.Client4, statusPost *model.Post, usersToDelete []*model.User, reportProgress func(int)) {
 	db, err := pluginClient.Store.GetMasterDB()
 	if err != nil {
 		pluginClient.Log.Error("Error accessing database", "error", err)
-		reportError(pluginClient, runningUserId, runningChannelId, fmt.Errorf(
+		reportError(pluginClient, statusPost, fmt.Errorf(
 			"Error accessing database to find empty channels: %s", err.Error()))
 		return
 	}
 
 	// Delete the specified users and all related user data.
-	if err := purgeUsers(db, pluginClient, socketClient, usersToDelete); err != nil {
+	if err := purgeUsers(db, pluginClient, socketClient, usersToDelete, reportProgress); err != nil {
 		pluginClient.Log.Error("Error deleting users", "error", err)
-		reportError(pluginClient, runningUserId, runningChannelId, fmt.Errorf(
+		reportError(pluginClient, statusPost, fmt.Errorf(
 			"Error deleting users: %s", err.Error()))
 		return
 	}
@@ -33,28 +83,14 @@ func runBulkDeleteJob(runLock *cluster.Mutex, pluginClient *pluginapi.Client, so
 	// channels that previously had users in them - we just deleted them.
 	if err := purgeEmptyChannels(db, pluginClient, socketClient); err != nil {
 		pluginClient.Log.Error("Error deleting empty channels", "error", err)
-		reportError(pluginClient, runningUserId, runningChannelId, fmt.Errorf(
-			"Error deleting empty channels: %s", err.Error()))
+		reportError(pluginClient, statusPost, fmt.Errorf("Error deleting empty channels: %s", err.Error()))
 		return
 	}
 
-	userDeletionCount := len(usersToDelete)
-	pluginClient.Log.Info("Finished bulk deletion", "userDeletionCount", userDeletionCount)
-	reportSuccess(pluginClient, runningUserId, runningChannelId, userDeletionCount)
+	pluginClient.Log.Info("Finished bulk deletion", "userDeletionCount", len(usersToDelete))
 }
 
-func reportError(pluginClient *pluginapi.Client, runningUserId string, runningChannelId string, err error) {
-	pluginClient.Post.CreatePost(&model.Post{
-		UserId:    runningUserId,
-		ChannelId: runningChannelId,
-		Message:   fmt.Sprintf("**Bulk delete job failed!** %s", err.Error()),
-	})
-}
-
-func reportSuccess(pluginClient *pluginapi.Client, runningUserId string, runningChannelId string, userDeletionCount int) {
-	pluginClient.Post.CreatePost(&model.Post{
-		UserId:    runningUserId,
-		ChannelId: runningChannelId,
-		Message:   fmt.Sprintf("**Bulk deletion job complete!** %d users deleted.", userDeletionCount),
-	})
+func reportError(pluginClient *pluginapi.Client, statusPost *model.Post, err error) {
+	statusPost.Message = fmt.Sprintf("### Bulk user deletion job failed!\n%s", err.Error())
+	pluginClient.Post.UpdatePost(statusPost)
 }

@@ -10,8 +10,8 @@ import (
 	"github.com/mattermost/mattermost/server/public/pluginapi"
 )
 
-func purgeUsers(db *sql.DB, pluginClient *pluginapi.Client, socketClient *model.Client4, users []*model.User) error {
-	for _, user := range users {
+func purgeUsers(db *sql.DB, pluginClient *pluginapi.Client, socketClient *model.Client4, users []*model.User, reportProgress func(int)) error {
+	for i, user := range users {
 		resp, err := socketClient.PermanentDeleteUser(context.Background(), user.Id)
 		if err != nil {
 			return err
@@ -26,6 +26,7 @@ func purgeUsers(db *sql.DB, pluginClient *pluginapi.Client, socketClient *model.
 			return err
 		}
 		pluginClient.Log.Info("Deleted user", "user", user.Email)
+		reportProgress(i + 1)
 	}
 	return nil
 }

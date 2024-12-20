@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/mattermost/mattermost/server/public/model"
 	"github.com/mattermost/mattermost/server/public/plugin"
@@ -103,7 +104,7 @@ func (p *Plugin) ExecuteCommand(_ *plugin.Context, args *model.CommandArgs) (*mo
 
 	if len(usersToDelete) == 0 {
 		return &model.CommandResponse{
-			ResponseType: model.CommandResponseTypeInChannel,
+			ResponseType: model.CommandResponseTypeEphemeral,
 			Text:         fmt.Sprintf("There's nothing to do - there are no matching users to delete."),
 		}, nil
 	}
@@ -114,23 +115,19 @@ func (p *Plugin) ExecuteCommand(_ *plugin.Context, args *model.CommandArgs) (*mo
 	}
 	userListString := strings.TrimSuffix(userList.String(), ", ")
 
-	if dryRun {
+	userListFileInfo, err := p.pluginClient.File.Upload(strings.NewReader(userListString),
+		fmt.Sprintf("%d-target-users-bulk-delete-%s-%s.txt", time.Now().Unix(), fields[1], fields[2]), args.ChannelId)
+	if err != nil {
 		return &model.CommandResponse{
-			ResponseType: model.CommandResponseTypeInChannel,
-			Attachments: []*model.SlackAttachment{{
-				Pretext: fmt.Sprintf("Dry-run bulk user deletion with command: `%s`\nThe following %d users would be removed:", args.Command, len(usersToDelete)),
-				Text:    userListString,
-			}},
+			ResponseType: model.CommandResponseTypeEphemeral,
+			Text:         fmt.Sprintf("Unable to upload list of target users: %s", err.Error()),
 		}, nil
 	}
 
-	go runBulkDeleteJob(p.runLock, p.pluginClient, p.socketClient, args.UserId, args.ChannelId, usersToDelete)
+	go p.runBulkDeleteJob(dryRun, args.UserId, args.ChannelId, usersToDelete, userListFileInfo.Id)
 
 	return &model.CommandResponse{
-		ResponseType: model.CommandResponseTypeInChannel,
-		Attachments: []*model.SlackAttachment{{
-			Pretext: fmt.Sprintf("Starting bulk user deletion job with command: `%s`\nWhen complete, the result will be posted in this channel. The following %d users are being deleted:", args.Command, len(usersToDelete)),
-			Text:    userListString,
-		}},
+		ResponseType: model.CommandResponseTypeEphemeral,
+		Text:         fmt.Sprintf("Starting bulk user deletion job with command: `%s`", args.Command),
 	}, nil
 }

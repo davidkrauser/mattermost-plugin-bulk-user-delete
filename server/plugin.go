@@ -6,11 +6,11 @@ import (
 	"github.com/mattermost/mattermost/server/public/model"
 	"github.com/mattermost/mattermost/server/public/plugin"
 	"github.com/mattermost/mattermost/server/public/pluginapi"
-	"github.com/mattermost/mattermost/server/public/pluginapi/cluster"
 )
 
 const SOCKETCLIENTPATH = "/var/tmp/mattermost_local.socket"
 const RUNLOCKKEY = "com.mattermost.plugin-bulk-user-delete/runlock"
+const RUNNINGKEY = "com.mattermost.plugin-bulk-user-delete/running"
 
 // Plugin implements the interface expected by the Mattermost server to communicate between the server and plugin processes.
 type Plugin struct {
@@ -18,9 +18,6 @@ type Plugin struct {
 
 	pluginClient *pluginapi.Client
 	socketClient *model.Client4
-
-	// runLock is used to ensure we don't run two bulk deletion jobs simultaneously
-	runLock *cluster.Mutex
 
 	// configurationLock synchronizes access to the configuration.
 	configurationLock sync.RWMutex
@@ -37,9 +34,7 @@ func (p *Plugin) OnActivate() error {
 	p.socketClient = model.NewAPIv4SocketClient(SOCKETCLIENTPATH)
 	p.pluginClient = pluginapi.NewClient(p.API, p.Driver)
 
-	var err error
-	p.runLock, err = cluster.NewMutex(p.API, RUNLOCKKEY)
-	if err != nil {
+	if _, err := p.pluginClient.KV.Set(RUNNINGKEY, false); err != nil {
 		return err
 	}
 
