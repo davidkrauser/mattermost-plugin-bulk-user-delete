@@ -44,10 +44,13 @@ func (p *Plugin) runBulkDeleteJob(dryRun bool, runningUserId string, runningChan
 		return
 	}
 
-	bulkDelete(p.pluginClient, p.socketClient, statusPost, usersToDelete, func(status int) {
+	if success := bulkDelete(p.pluginClient, p.socketClient, statusPost, usersToDelete, func(status int) {
 		statusPost.Message = fmt.Sprintf("### Bulk user deletion job started\nDeleted %d/%d users...", status, userCount)
 		p.pluginClient.Post.UpdatePost(statusPost)
-	})
+	}); success {
+		statusPost.Message = fmt.Sprintf("### Bulk user deletion job finished\nDeleted %d users", userCount)
+		p.pluginClient.Post.UpdatePost(statusPost)
+	}
 
 	// Set the job not running
 	_, err = p.pluginClient.KV.Set(RUNNINGKEY, false)
@@ -57,18 +60,15 @@ func (p *Plugin) runBulkDeleteJob(dryRun bool, runningUserId string, runningChan
 			"Could not clean up job status after run: %s", err.Error()))
 		return
 	}
-
-	statusPost.Message = fmt.Sprintf("### Bulk user deletion job finished\nDeleted %d users", userCount)
-	p.pluginClient.Post.UpdatePost(statusPost)
 }
 
-func bulkDelete(pluginClient *pluginapi.Client, socketClient *model.Client4, statusPost *model.Post, usersToDelete []*model.User, reportProgress func(int)) {
+func bulkDelete(pluginClient *pluginapi.Client, socketClient *model.Client4, statusPost *model.Post, usersToDelete []*model.User, reportProgress func(int)) bool {
 	db, err := pluginClient.Store.GetMasterDB()
 	if err != nil {
 		pluginClient.Log.Error("Error accessing database", "error", err)
 		reportError(pluginClient, statusPost, fmt.Errorf(
 			"Error accessing database to find empty channels: %s", err.Error()))
-		return
+		return false
 	}
 
 	// Delete the specified users and all related user data.
@@ -76,7 +76,7 @@ func bulkDelete(pluginClient *pluginapi.Client, socketClient *model.Client4, sta
 		pluginClient.Log.Error("Error deleting users", "error", err)
 		reportError(pluginClient, statusPost, fmt.Errorf(
 			"Error deleting users: %s", err.Error()))
-		return
+		return false
 	}
 
 	// Delete all empty channels. The expectation is that empty channels were
@@ -84,10 +84,11 @@ func bulkDelete(pluginClient *pluginapi.Client, socketClient *model.Client4, sta
 	if err := purgeEmptyChannels(db, pluginClient, socketClient); err != nil {
 		pluginClient.Log.Error("Error deleting empty channels", "error", err)
 		reportError(pluginClient, statusPost, fmt.Errorf("Error deleting empty channels: %s", err.Error()))
-		return
+		return false
 	}
 
 	pluginClient.Log.Info("Finished bulk deletion", "userDeletionCount", len(usersToDelete))
+	return true
 }
 
 func reportError(pluginClient *pluginapi.Client, statusPost *model.Post, err error) {
