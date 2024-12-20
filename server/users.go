@@ -29,11 +29,12 @@ func getUsers(client *pluginapi.Client, targetInactiveOnly bool) ([]*model.User,
 	return users, nil
 }
 
-func filterForUsersByEmails(users []*model.User, targetEmailSuffixes, targetEmailAddresses []string) []*model.User {
+func filterForUsersByEmails(client *pluginapi.Client, users []*model.User, targetEmailSuffixes, targetEmailAddresses []string) []*model.User {
 	var usersToDelete []*model.User
 	for _, user := range users {
 		// We can't permanently delete system administrators
 		if user.IsInRole(model.SystemAdminRoleId) {
+			client.Log.Warn("targeted a sysadmin which is not supported: ignoring this user", "user_id", user.Id)
 			continue
 		}
 		if emailMatches(user, targetEmailSuffixes, targetEmailAddresses) {
