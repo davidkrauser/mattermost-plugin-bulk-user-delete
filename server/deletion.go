@@ -22,8 +22,8 @@ func purgeUsers(db *sql.DB, pluginClient *pluginapi.Client, socketClient *model.
 		// There's a bug in `PermanentDeleteUser` that could result in
 		// some user posts not getting deleted. So we go in after to
 		// make sure all posts tied to this user are removed.
-		if err := purgeHangingUserPosts(db, user.Id); err != nil {
-			return err
+		if err := purgeDanglingUserPosts(db, user.Id); err != nil {
+			return fmt.Errorf("error trying to purge dangling posts for user %s: %s", user.Id, err.Error())
 		}
 		pluginClient.Log.Info("Deleted user", "user", user.Email)
 		reportProgress(i + 1)
@@ -31,7 +31,7 @@ func purgeUsers(db *sql.DB, pluginClient *pluginapi.Client, socketClient *model.
 	return nil
 }
 
-func purgeHangingUserPosts(db *sql.DB, userID string) error {
+func purgeDanglingUserPosts(db *sql.DB, userID string) error {
 	// Delete threads related to User's posts
 	_, err := db.Exec(fmt.Sprintf(`
 DELETE FROM threads
