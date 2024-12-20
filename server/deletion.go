@@ -31,7 +31,7 @@ func purgeUsers(db *sql.DB, pluginClient *pluginapi.Client, socketClient *model.
 	return nil
 }
 
-func purgeHangingUserPosts(db *sql.DB, userId string) error {
+func purgeHangingUserPosts(db *sql.DB, userID string) error {
 	// Delete threads related to User's posts
 	_, err := db.Exec(fmt.Sprintf(`
 DELETE FROM threads
@@ -40,7 +40,7 @@ DELETE FROM threads
     FROM posts
       WHERE userid = '%s'
   );
-`, userId))
+`, userID))
 	if err != nil {
 		return fmt.Errorf("error when trying to delete user threads: %s", err.Error())
 	}
@@ -53,7 +53,7 @@ DELETE FROM threadmemberships
     FROM posts
       WHERE posts.userid = '%s'
   );
-`, userId))
+`, userID))
 	if err != nil {
 		return fmt.Errorf("error when trying to delete user thread members: %s", err.Error())
 	}
@@ -66,7 +66,7 @@ DELETE FROM reactions
     FROM posts
       WHERE posts.userid = '%s'
   );
-`, userId))
+`, userID))
 	if err != nil {
 		return fmt.Errorf("error when trying to delete user post reactions: %s", err.Error())
 	}
@@ -79,7 +79,7 @@ DELETE FROM posts
     FROM posts
       WHERE posts.userid = '%s'
   );
-`, userId))
+`, userID))
 	if err != nil {
 		return fmt.Errorf("error when trying to delete replies to user posts: %s", err.Error())
 	}
@@ -88,7 +88,7 @@ DELETE FROM posts
 	_, err = db.Exec(fmt.Sprintf(`
 DELETE FROM posts
   WHERE posts.userid = '%s';
-`, userId))
+`, userID))
 	if err != nil {
 		return fmt.Errorf("error when trying to delete user posts: %s", err.Error())
 	}
@@ -111,7 +111,9 @@ SELECT id FROM channels
 
 	for rows.Next() {
 		var id string
-		rows.Scan(&id)
+		if err := rows.Scan(&id); err != nil {
+			return err
+		}
 
 		resp, err := socketClient.PermanentDeleteChannel(context.Background(), id)
 		if err != nil {

@@ -8,9 +8,8 @@ import (
 	"github.com/mattermost/mattermost/server/public/pluginapi"
 )
 
-const SOCKETCLIENTPATH = "/var/tmp/mattermost_local.socket"
-const RUNLOCKKEY = "com.mattermost.plugin-bulk-user-delete/runlock"
-const RUNNINGKEY = "com.mattermost.plugin-bulk-user-delete/running"
+const SocketClientPath = "/var/tmp/mattermost_local.socket"
+const RunningKey = "com.mattermost.plugin-bulk-user-delete/running"
 
 // Plugin implements the interface expected by the Mattermost server to communicate between the server and plugin processes.
 type Plugin struct {
@@ -31,10 +30,10 @@ type Plugin struct {
 func (p *Plugin) OnActivate() error {
 	// Some needed APIs are only available over the REST API,
 	// so we'll hit them over a local socket.
-	p.socketClient = model.NewAPIv4SocketClient(SOCKETCLIENTPATH)
+	p.socketClient = model.NewAPIv4SocketClient(SocketClientPath)
 	p.pluginClient = pluginapi.NewClient(p.API, p.Driver)
 
-	if _, err := p.pluginClient.KV.Set(RUNNINGKEY, false); err != nil {
+	if _, err := p.pluginClient.KV.Set(RunningKey, false); err != nil {
 		return err
 	}
 
