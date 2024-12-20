@@ -158,11 +158,12 @@ func purgeEmptyChannels(db *sql.DB, pluginClient *pluginapi.Client, socketClient
 	for {
 		rows, err := db.Query(`
 			SELECT id FROM Channels
-			WHERE NOT EXISTS (
-				SELECT 1
-				FROM ChannelMembers
-				WHERE ChannelMembers.channelid = Channels.id
-			)
+			WHERE type NOT IN ('D', 'G')
+			    AND NOT EXISTS (
+			        SELECT 1
+			        FROM ChannelMembers
+			        WHERE ChannelMembers.channelid = Channels.id
+			    )
 			LIMIT 1000;
 		`)
 		if err != nil {
