@@ -10,25 +10,25 @@ import (
 	"github.com/mattermost/mattermost/server/public/pluginapi"
 )
 
-func purgeUsers(db *sql.DB, pluginClient *pluginapi.Client, socketClient *model.Client4, users []*model.User, reportProgress func(int)) error {
+func purgeUsers(db *sql.DB, pluginClient *pluginapi.Client, socketClient *model.Client4, users []*model.User, reportProgress func(int)) (int, error) {
 	for i, user := range users {
 		resp, err := socketClient.PermanentDeleteUser(context.Background(), user.Id)
 		if err != nil {
-			return err
+			return i, err
 		}
 		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("%d status code during attempt to delete user %s", resp.StatusCode, user.Email)
+			return i, fmt.Errorf("%d status code during attempt to delete user %s", resp.StatusCode, user.Email)
 		}
 		// There's a bug in `PermanentDeleteUser` that could result in
 		// some user posts not getting deleted. So we go in after to
 		// make sure all posts tied to this user are removed.
 		if err := purgeDanglingUserPosts(db, user.Id); err != nil {
-			return fmt.Errorf("error trying to purge dangling posts for user %s: %s", user.Id, err.Error())
+			return i, fmt.Errorf("error trying to purge dangling posts for user %s: %s", user.Id, err.Error())
 		}
 		pluginClient.Log.Info("Deleted user", "user", user.Email)
 		reportProgress(i + 1)
 	}
-	return nil
+	return len(users), nil
 }
 
 func purgeDanglingUserPosts(db *sql.DB, userID string) error {
