@@ -170,16 +170,20 @@ func purgeEmptyChannels(db *sql.DB, pluginClient *pluginapi.Client, socketClient
 		}
 		defer rows.Close()
 
-		if !rows.Next() {
-			break
-		}
-
+		ids := []string{}
 		for rows.Next() {
 			var id string
 			if err := rows.Scan(&id); err != nil {
 				return err
 			}
+			ids = append(ids, id)
+		}
 
+		if len(ids) == 0 {
+			break
+		}
+
+		for _, id := range ids {
 			resp, err := socketClient.PermanentDeleteChannel(context.Background(), id)
 			if err != nil {
 				return err
