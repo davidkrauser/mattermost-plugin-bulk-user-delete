@@ -155,32 +155,44 @@ func purgeDanglingUserPosts(db *sql.DB, userID string) error {
 }
 
 func purgeEmptyChannels(db *sql.DB, pluginClient *pluginapi.Client, socketClient *model.Client4) error {
-	rows, err := db.Query(`
-		SELECT id FROM Channels
-		WHERE NOT EXISTS (
-			SELECT 1
-			FROM ChannelMembers
-			WHERE ChannelMembers.channelid = Channels.id
-		);
-	`)
-	if err != nil {
-		return err
-	}
-
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return err
-		}
-
-		resp, err := socketClient.PermanentDeleteChannel(context.Background(), id)
+	for {
+		rows, err := db.Query(`
+			SELECT id FROM Channels
+			WHERE NOT EXISTS (
+				SELECT 1
+				FROM ChannelMembers
+				WHERE ChannelMembers.channelid = Channels.id
+			)
+			LIMIT 1000;
+		`)
 		if err != nil {
 			return err
 		}
-		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("%d status code during attempt to delete channel %s", resp.StatusCode, id)
+		defer rows.Close()
+
+		ids := []string{}
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				return err
+			}
+			ids = append(ids, id)
 		}
-		pluginClient.Log.Info("Deleted channel", "channel", id)
+
+		if len(ids) == 0 {
+			break
+		}
+
+		for _, id := range ids {
+			resp, err := socketClient.PermanentDeleteChannel(context.Background(), id)
+			if err != nil {
+				return err
+			}
+			if resp.StatusCode != http.StatusOK {
+				return fmt.Errorf("%d status code during attempt to delete channel %s", resp.StatusCode, id)
+			}
+			pluginClient.Log.Info("Deleted channel", "channel", id)
+		}
 	}
 
 	return nil
