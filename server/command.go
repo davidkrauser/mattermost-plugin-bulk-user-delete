@@ -21,6 +21,7 @@ const UsersAll = "all"
 
 func registerSlashCommand(client *pluginapi.Client) error {
 	autocompleteData := model.NewAutocompleteData(Trigger, Usage, "")
+	autocompleteData.RoleID = model.SystemAdminRoleId
 	autocompleteData.AddStaticListArgument("mode", true, []model.AutocompleteListItem{{
 		Item:     ModeDryRun,
 		HelpText: "Simulate a bulk deletion. This will not change any data.",
