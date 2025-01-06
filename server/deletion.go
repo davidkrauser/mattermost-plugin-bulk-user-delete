@@ -28,13 +28,93 @@ func purgeUsers(db *sql.DB, pluginClient *pluginapi.Client, socketClient *model.
 		if err := purgeDanglingUserPosts(db, user.Id); err != nil {
 			return i, fmt.Errorf("error trying to purge dangling posts for user %s: %s", user.Id, err.Error())
 		}
+		// `PermanentDeleteUser` misses a few tables with user data.
+		// We take an extra step here to ensure that data is removed.
+		if err := purgeDanglingUserData(db, user.Id); err != nil {
+			return i, fmt.Errorf("error trying to purge dangling metadata for user %s: %s", user.Id, err.Error())
+		}
 		pluginClient.Log.Info("Deleted user", "user", user.Email)
 		reportProgress(i + 1)
 	}
 	return len(users), nil
 }
 
-func purgeDanglingUserPosts(db *sql.DB, userID string) error {
+func purgeDanglingUserData(db *sql.DB, userID string) (err error) {
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("error when trying to begin transaction: %s", err.Error())
+	}
+	defer func() {
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && rollbackErr != sql.ErrTxDone {
+			err = fmt.Errorf("error when trying to rollback transaction: %s on error: %s",
+				rollbackErr.Error(), err.Error())
+		}
+	}()
+
+	deleteStatusQuery := sq.Delete("Status").
+		Where(sq.Eq{"userid": userID}).
+		PlaceholderFormat(sq.Dollar)
+
+	deleteStatusQueryString, deleteStatusArgs, err := deleteStatusQuery.ToSql()
+	if err != nil {
+		return fmt.Errorf("error when trying to build the delete status query: %s", err.Error())
+	}
+
+	_, err = tx.Exec(deleteStatusQueryString, deleteStatusArgs...)
+	if err != nil {
+		return fmt.Errorf("error when trying to delete user status: %s", err.Error())
+	}
+
+	deleteChannelMemberHistoryQuery := sq.Delete("ChannelMemberHistory").
+		Where(sq.Eq{"userid": userID}).
+		PlaceholderFormat(sq.Dollar)
+
+	deleteChannelMemberHistoryQueryString, deleteChannelMemberHistoryArgs, err := deleteChannelMemberHistoryQuery.ToSql()
+	if err != nil {
+		return fmt.Errorf("error when trying to build the delete channel member history query: %s", err.Error())
+	}
+
+	_, err = tx.Exec(deleteChannelMemberHistoryQueryString, deleteChannelMemberHistoryArgs...)
+	if err != nil {
+		return fmt.Errorf("error when trying to delete user channel member history: %s", err.Error())
+	}
+
+	deleteSidebarCategoriesQuery := sq.Delete("SidebarCategories").
+		Where(sq.Eq{"userid": userID}).
+		PlaceholderFormat(sq.Dollar)
+
+	deleteSidebarCategoriesQueryString, deleteSidebarCategoriesArgs, err := deleteSidebarCategoriesQuery.ToSql()
+	if err != nil {
+		return fmt.Errorf("error when trying to build the delete sidebar categories query: %s", err.Error())
+	}
+
+	_, err = tx.Exec(deleteSidebarCategoriesQueryString, deleteSidebarCategoriesArgs...)
+	if err != nil {
+		return fmt.Errorf("error when trying to delete user sidebar categories: %s", err.Error())
+	}
+
+	deleteProductNoticeViewStateQuery := sq.Delete("ProductNoticeViewState").
+		Where(sq.Eq{"userid": userID}).
+		PlaceholderFormat(sq.Dollar)
+
+	deleteProductNoticeViewStateQueryString, deleteProductNoticeViewStateArgs, err := deleteProductNoticeViewStateQuery.ToSql()
+	if err != nil {
+		return fmt.Errorf("error when trying to build the delete product notice view state query: %s", err.Error())
+	}
+
+	_, err = tx.Exec(deleteProductNoticeViewStateQueryString, deleteProductNoticeViewStateArgs...)
+	if err != nil {
+		return fmt.Errorf("error when trying to delete user product notice view state: %s", err.Error())
+	}
+
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("error when trying to commit the transaction: %s", err.Error())
+	}
+
+	return nil
+}
+
+func purgeDanglingUserPosts(db *sql.DB, userID string) (err error) {
 	for {
 		tx, err := db.Begin()
 		if err != nil {
@@ -42,7 +122,8 @@ func purgeDanglingUserPosts(db *sql.DB, userID string) error {
 		}
 		defer func() {
 			if rollbackErr := tx.Rollback(); rollbackErr != nil && rollbackErr != sql.ErrTxDone {
-				fmt.Printf("error when trying to rollback transaction: %s", rollbackErr.Error())
+				err = fmt.Errorf("error when trying to rollback transaction: %s on error: %s",
+					rollbackErr.Error(), err.Error())
 			}
 		}()
 
