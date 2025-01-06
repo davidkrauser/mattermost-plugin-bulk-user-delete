@@ -31,6 +31,12 @@ This plugin requires local mode to be enabled to delete users. You'll need the f
 "LocalModeSocketLocation": "/var/tmp/mattermost_local.socket",
 ```
 
+Additionally, to delete users over the API, the following must also be set in your Mattermost configuration:
+
+```
+"EnableAPIUserDeletion": true,
+```
+
 ## Limitations
 
 This plugin does not currently remove user data for external plugins. For example, any data created with the popular [boards](https://github.com/mattermost/mattermost-plugin-boards) or [playbooks](https://github.com/mattermost/mattermost-plugin-playbooks) plugins will not have user data removed.
