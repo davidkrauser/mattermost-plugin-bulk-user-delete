@@ -56,12 +56,20 @@ func (p *Plugin) runBulkDeleteJob(dryRun bool, runningUserID string, runningChan
 		}
 		lastTime = currTime
 
+		if status == userCount {
+			statusPost.Message = fmt.Sprintf("### Bulk user deletion job started\nDeleted %d users. Cleaning up empty channels, boards, and playbooks...", userCount)
+			if err = p.pluginClient.Post.UpdatePost(statusPost); err != nil {
+				p.pluginClient.Log.Error("Unable to update status post", "error", err)
+			}
+			return
+		}
+
 		statusPost.Message = fmt.Sprintf("### Bulk user deletion job started\nDeleted %d/%d users...", status, userCount)
 		if err = p.pluginClient.Post.UpdatePost(statusPost); err != nil {
 			p.pluginClient.Log.Error("Unable to update status post", "error", err)
 		}
 	}); success {
-		statusPost.Message = fmt.Sprintf("### Bulk user deletion job finished\nDeleted %d users", userCount)
+		statusPost.Message = fmt.Sprintf("### Bulk user deletion job finished\nDeleted %d users and cleaned up empty channels, boards, and playbooks.", userCount)
 		if err = p.pluginClient.Post.UpdatePost(statusPost); err != nil {
 			p.pluginClient.Log.Error("Unable to update status post", "error", err)
 		}
