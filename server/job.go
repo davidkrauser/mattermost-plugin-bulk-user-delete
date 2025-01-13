@@ -127,6 +127,34 @@ func bulkDelete(pluginClient *pluginapi.Client, socketClient *model.Client4, sta
 		return false
 	}
 
+	// Delete playbook members that no longer exist in the user table
+	if err := purgeDanglingPlaybookMembers(db); err != nil {
+		pluginClient.Log.Error("Error removing users from playbook members list", "error", err)
+		reportError(pluginClient, statusPost, fmt.Errorf("error removing users from playbook members list: %s", err.Error()), len(usersToDelete), len(usersToDelete))
+		return false
+	}
+
+	// Delete playbooks with no members
+	if err := purgeEmptyPlaybooks(db); err != nil {
+		pluginClient.Log.Error("Error removing empty playbooks", "error", err)
+		reportError(pluginClient, statusPost, fmt.Errorf("error removing empty playbooks: %s", err.Error()), len(usersToDelete), len(usersToDelete))
+		return false
+	}
+
+	// Delete playbook runs with no members
+	if err := purgeEmptyPlaybookRuns(db); err != nil {
+		pluginClient.Log.Error("Error removing empty playbook runs", "error", err)
+		reportError(pluginClient, statusPost, fmt.Errorf("error removing empty playbook runs: %s", err.Error()), len(usersToDelete), len(usersToDelete))
+		return false
+	}
+
+	// Delete miscellaneous data related to deleted playbooks
+	if err := purgeDanglingPlaybookData(db); err != nil {
+		pluginClient.Log.Error("Error removing dangling playbook data", "error", err)
+		reportError(pluginClient, statusPost, fmt.Errorf("error removing dangling playbook data: %s", err.Error()), len(usersToDelete), len(usersToDelete))
+		return false
+	}
+
 	pluginClient.Log.Info("Finished bulk deletion", "userDeletionCount", len(usersToDelete))
 	return true
 }
