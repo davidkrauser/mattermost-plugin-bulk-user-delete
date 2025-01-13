@@ -39,7 +39,7 @@ Additionally, to delete users over the API, the following must also be set in yo
 
 ## Limitations
 
-This plugin does not currently remove user data for external plugins. For example, any data created with the popular [boards](https://github.com/mattermost/mattermost-plugin-boards) or [playbooks](https://github.com/mattermost/mattermost-plugin-playbooks) plugins will not have user data removed.
+This plugin does not currently remove user data for most external plugins. Right now, only data created with the popular [boards](https://github.com/mattermost/mattermost-plugin-boards) and [playbooks](https://github.com/mattermost/mattermost-plugin-playbooks) plugins will have user data removed.
 
 Additionally, the SQL queries used in this plugin to remove data are not optimized for performance, but instead for simplicity. The hope is that simpler queries are easier to understand and less likely to have errors.
 
