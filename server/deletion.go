@@ -242,8 +242,8 @@ func purgeEmptyChannels(db *sql.DB, pluginClient *pluginapi.Client, socketClient
 			WHERE type NOT IN ('D', 'G')
 			    AND NOT EXISTS (
 			        SELECT 1
-			        FROM ChannelMembers
-			        WHERE ChannelMembers.channelid = Channels.id
+			        FROM ChannelMembers INNER JOIN Users on ChannelMembers.userid = Users.id
+			        WHERE ChannelMembers.channelid = Channels.id AND Users.username != 'playbooks'
 			    )
 			LIMIT 1000;
 		`)

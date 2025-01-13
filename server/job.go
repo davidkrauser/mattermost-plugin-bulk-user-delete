@@ -105,14 +105,6 @@ func bulkDelete(pluginClient *pluginapi.Client, socketClient *model.Client4, sta
 		return false
 	}
 
-	// Delete all empty channels. The expectation is that empty channels were
-	// channels that previously had users in them - we just deleted them.
-	if err := purgeEmptyChannels(db, pluginClient, socketClient); err != nil {
-		pluginClient.Log.Error("Error deleting empty channels", "error", err)
-		reportError(pluginClient, statusPost, fmt.Errorf("error deleting empty channels: %s", err.Error()), len(usersToDelete), len(usersToDelete))
-		return false
-	}
-
 	// Delete board members that no longer exist in the user table
 	if err := purgeDanglingBoardMembers(db); err != nil {
 		pluginClient.Log.Error("Error removing users from board members list", "error", err)
@@ -152,6 +144,14 @@ func bulkDelete(pluginClient *pluginapi.Client, socketClient *model.Client4, sta
 	if err := purgeDanglingPlaybookData(db); err != nil {
 		pluginClient.Log.Error("Error removing dangling playbook data", "error", err)
 		reportError(pluginClient, statusPost, fmt.Errorf("error removing dangling playbook data: %s", err.Error()), len(usersToDelete), len(usersToDelete))
+		return false
+	}
+
+	// Delete all empty channels. The expectation is that empty channels were
+	// channels that previously had users in them - we just deleted them.
+	if err := purgeEmptyChannels(db, pluginClient, socketClient); err != nil {
+		pluginClient.Log.Error("Error deleting empty channels", "error", err)
+		reportError(pluginClient, statusPost, fmt.Errorf("error deleting empty channels: %s", err.Error()), len(usersToDelete), len(usersToDelete))
 		return false
 	}
 
