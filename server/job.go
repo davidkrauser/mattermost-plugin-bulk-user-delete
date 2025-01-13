@@ -14,11 +14,14 @@ func (p *Plugin) runBulkDeleteJob(dryRun bool, runningUserID string, runningChan
 		UserId:    runningUserID,
 		ChannelId: runningChannelID,
 		Message:   fmt.Sprintf("### Bulk user deletion job started\nDeleting %d users...", userCount),
-		FileIds:   model.StringArray{userListFileInfoID},
+	}
+
+	if len(userListFileInfoID) > 0 {
+		statusPost.FileIds = model.StringArray{userListFileInfoID}
 	}
 
 	if dryRun {
-		statusPost.Message = fmt.Sprintf("### Bulk user deletion job finished\nDry-run targeted %d users", userCount)
+		statusPost.Message = fmt.Sprintf("### Bulk user deletion job finished\nDry-run targeted %d users and all empty channels, boards, and playbooks", userCount)
 		err := p.pluginClient.Post.CreatePost(statusPost)
 		if err != nil {
 			p.pluginClient.Log.Error("Unable to create status post", "error", err)

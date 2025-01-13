@@ -103,29 +103,27 @@ func (p *Plugin) ExecuteCommand(_ *plugin.Context, args *model.CommandArgs) (*mo
 	config := p.getConfiguration()
 	usersToDelete := filterForUsersByEmails(p.pluginClient, users, config.TargetEmailAddressSuffixes(), config.TargetEmailAddresses())
 
-	if len(usersToDelete) == 0 {
-		return &model.CommandResponse{
-			ResponseType: model.CommandResponseTypeEphemeral,
-			Text:         "There's nothing to do - there are no matching users to delete.",
-		}, nil
+	var userListFileId string
+	if len(usersToDelete) > 0 {
+		var userList strings.Builder
+		for _, user := range usersToDelete {
+			fmt.Fprintf(&userList, "%s, ", user.Email)
+		}
+		userListString := strings.TrimSuffix(userList.String(), ", ")
+
+		userListFileInfo, err := p.pluginClient.File.Upload(strings.NewReader(userListString),
+			fmt.Sprintf("%d-target-users-bulk-delete-%s-%s.txt", time.Now().Unix(), fields[1], fields[2]), args.ChannelId)
+		if err != nil {
+			return &model.CommandResponse{
+				ResponseType: model.CommandResponseTypeEphemeral,
+				Text:         fmt.Sprintf("Unable to upload list of target users: %s", err.Error()),
+			}, nil
+		}
+
+		userListFileId = userListFileInfo.Id
 	}
 
-	var userList strings.Builder
-	for _, user := range usersToDelete {
-		fmt.Fprintf(&userList, "%s, ", user.Email)
-	}
-	userListString := strings.TrimSuffix(userList.String(), ", ")
-
-	userListFileInfo, err := p.pluginClient.File.Upload(strings.NewReader(userListString),
-		fmt.Sprintf("%d-target-users-bulk-delete-%s-%s.txt", time.Now().Unix(), fields[1], fields[2]), args.ChannelId)
-	if err != nil {
-		return &model.CommandResponse{
-			ResponseType: model.CommandResponseTypeEphemeral,
-			Text:         fmt.Sprintf("Unable to upload list of target users: %s", err.Error()),
-		}, nil
-	}
-
-	go p.runBulkDeleteJob(dryRun, args.UserId, args.ChannelId, usersToDelete, userListFileInfo.Id)
+	go p.runBulkDeleteJob(dryRun, args.UserId, args.ChannelId, usersToDelete, userListFileId)
 
 	return &model.CommandResponse{
 		ResponseType: model.CommandResponseTypeEphemeral,
