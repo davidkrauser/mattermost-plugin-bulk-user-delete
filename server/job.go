@@ -113,6 +113,20 @@ func bulkDelete(pluginClient *pluginapi.Client, socketClient *model.Client4, sta
 		return false
 	}
 
+	// Delete board members that no longer exist in the user table
+	if err := purgeDanglingBoardMembers(db); err != nil {
+		pluginClient.Log.Error("Error removing users from board members list", "error", err)
+		reportError(pluginClient, statusPost, fmt.Errorf("error removing users from board members list: %s", err.Error()), len(usersToDelete), len(usersToDelete))
+		return false
+	}
+
+	// Delete boards that have no members
+	if err := purgeEmptyBoards(db, pluginClient); err != nil {
+		pluginClient.Log.Error("Error removing empty boards", "error", err)
+		reportError(pluginClient, statusPost, fmt.Errorf("error removing empty boards: %s", err.Error()), len(usersToDelete), len(usersToDelete))
+		return false
+	}
+
 	pluginClient.Log.Info("Finished bulk deletion", "userDeletionCount", len(usersToDelete))
 	return true
 }
