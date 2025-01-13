@@ -30,7 +30,7 @@ func (p *Plugin) runBulkDeleteJob(dryRun bool, runningUserID string, runningChan
 	}
 
 	if err := p.pluginClient.Post.CreatePost(statusPost); err != nil {
-		p.pluginClient.Log.Info("Bulk delete job unable to create status post. Aborting...")
+		p.pluginClient.Log.Error("Bulk delete job unable to create status post. Aborting...")
 		return
 	}
 
@@ -43,7 +43,7 @@ func (p *Plugin) runBulkDeleteJob(dryRun bool, runningUserID string, runningChan
 		return
 	}
 	if !set {
-		p.pluginClient.Log.Info("Bulk delete job is already running. Aborting...")
+		p.pluginClient.Log.Warn("Bulk delete job is already running. Aborting...")
 		reportError(p.pluginClient, statusPost, fmt.Errorf(
 			"bulk delete job is already running - aborting"), userCount, 0)
 		return
