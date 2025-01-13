@@ -134,17 +134,17 @@ func bulkDelete(pluginClient *pluginapi.Client, socketClient *model.Client4, sta
 		return false
 	}
 
-	// Delete playbooks with no members
-	if err := purgeEmptyPlaybooks(db); err != nil {
-		pluginClient.Log.Error("Error removing empty playbooks", "error", err)
-		reportError(pluginClient, statusPost, fmt.Errorf("error removing empty playbooks: %s", err.Error()), len(usersToDelete), len(usersToDelete))
-		return false
-	}
-
 	// Delete playbook runs with no members
 	if err := purgeEmptyPlaybookRuns(db); err != nil {
 		pluginClient.Log.Error("Error removing empty playbook runs", "error", err)
 		reportError(pluginClient, statusPost, fmt.Errorf("error removing empty playbook runs: %s", err.Error()), len(usersToDelete), len(usersToDelete))
+		return false
+	}
+
+	// Delete playbooks with no members
+	if err := purgeEmptyPlaybooks(db); err != nil {
+		pluginClient.Log.Error("Error removing empty playbooks", "error", err)
+		reportError(pluginClient, statusPost, fmt.Errorf("error removing empty playbooks: %s", err.Error()), len(usersToDelete), len(usersToDelete))
 		return false
 	}
 

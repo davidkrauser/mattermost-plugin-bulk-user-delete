@@ -77,8 +77,19 @@ func purgeDanglingPlaybookMembers(db *sql.DB) error {
 	return nil
 }
 
-func purgeEmptyPlaybooks(db *sql.DB) error {
-	rows, err := db.Query(`
+func purgeEmptyPlaybooks(db *sql.DB) (err error) {
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("error when trying to begin transaction: %s", err.Error())
+	}
+	defer func() {
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && rollbackErr != sql.ErrTxDone {
+			err = fmt.Errorf("error when trying to rollback transaction: %s on error: %s",
+				rollbackErr.Error(), err.Error())
+		}
+	}()
+
+	rows, err := tx.Query(`
 			SELECT id FROM ir_playbook
 			  WHERE NOT EXISTS (
 			    SELECT 1
@@ -100,6 +111,34 @@ func purgeEmptyPlaybooks(db *sql.DB) error {
 		ids = append(ids, id)
 	}
 
+	metricConfigDeleteQuery := sq.Delete("ir_metricconfig").
+		Where(sq.Eq{"playbookid": ids}).
+		PlaceholderFormat(sq.Dollar)
+
+	metricConfigDeleteQueryString, metricConfigDeleteQueryArgs, err := metricConfigDeleteQuery.ToSql()
+	if err != nil {
+		return fmt.Errorf("error when trying to build the query to delete playbook metric configs: %s", err.Error())
+	}
+
+	_, err = tx.Exec(metricConfigDeleteQueryString, metricConfigDeleteQueryArgs...)
+	if err != nil {
+		return fmt.Errorf("error when trying to delete playbook metric configs: %s", err.Error())
+	}
+
+	autoFollowDeleteQuery := sq.Delete("ir_playbookautofollow").
+		Where(sq.Eq{"playbookid": ids}).
+		PlaceholderFormat(sq.Dollar)
+
+	autoFollowDeleteQueryString, autoFollowDeleteQueryArgs, err := autoFollowDeleteQuery.ToSql()
+	if err != nil {
+		return fmt.Errorf("error when trying to build the query to delete playbook auto follows: %s", err.Error())
+	}
+
+	_, err = tx.Exec(autoFollowDeleteQueryString, autoFollowDeleteQueryArgs...)
+	if err != nil {
+		return fmt.Errorf("error when trying to delete playbook auto follows: %s", err.Error())
+	}
+
 	playbookDeleteQuery := sq.Delete("ir_playbook").
 		Where(sq.Eq{"id": ids}).
 		PlaceholderFormat(sq.Dollar)
@@ -109,16 +148,31 @@ func purgeEmptyPlaybooks(db *sql.DB) error {
 		return fmt.Errorf("error when trying to build the query to delete playbooks: %s", err.Error())
 	}
 
-	_, err = db.Exec(playbookDeleteQueryString, playbookDeleteQueryArgs...)
+	_, err = tx.Exec(playbookDeleteQueryString, playbookDeleteQueryArgs...)
 	if err != nil {
 		return fmt.Errorf("error when trying to delete playbooks: %s", err.Error())
+	}
+
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("error when trying to commit the transaction: %s", err.Error())
 	}
 
 	return nil
 }
 
-func purgeEmptyPlaybookRuns(db *sql.DB) error {
-	rows, err := db.Query(`
+func purgeEmptyPlaybookRuns(db *sql.DB) (err error) {
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("error when trying to begin transaction: %s", err.Error())
+	}
+	defer func() {
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && rollbackErr != sql.ErrTxDone {
+			err = fmt.Errorf("error when trying to rollback transaction: %s on error: %s",
+				rollbackErr.Error(), err.Error())
+		}
+	}()
+
+	rows, err := tx.Query(`
 			SELECT id FROM ir_incident
 			  WHERE NOT EXISTS (
 			    SELECT 1
@@ -140,6 +194,48 @@ func purgeEmptyPlaybookRuns(db *sql.DB) error {
 		ids = append(ids, id)
 	}
 
+	metricDeleteQuery := sq.Delete("ir_metric").
+		Where(sq.Eq{"incidentid": ids}).
+		PlaceholderFormat(sq.Dollar)
+
+	metricDeleteQueryString, metricDeleteQueryArgs, err := metricDeleteQuery.ToSql()
+	if err != nil {
+		return fmt.Errorf("error when trying to build the query to delete playbook run metrics: %s", err.Error())
+	}
+
+	_, err = tx.Exec(metricDeleteQueryString, metricDeleteQueryArgs...)
+	if err != nil {
+		return fmt.Errorf("error when trying to delete playbook metrics: %s", err.Error())
+	}
+
+	statusPostsDeleteQuery := sq.Delete("ir_statusposts").
+		Where(sq.Eq{"incidentid": ids}).
+		PlaceholderFormat(sq.Dollar)
+
+	statusPostsDeleteQueryString, statusPostsDeleteQueryArgs, err := statusPostsDeleteQuery.ToSql()
+	if err != nil {
+		return fmt.Errorf("error when trying to build the query to delete playbook run status posts: %s", err.Error())
+	}
+
+	_, err = tx.Exec(statusPostsDeleteQueryString, statusPostsDeleteQueryArgs...)
+	if err != nil {
+		return fmt.Errorf("error when trying to delete playbook run status posts: %s", err.Error())
+	}
+
+	timelineEventDeleteQuery := sq.Delete("ir_timelineevent").
+		Where(sq.Eq{"incidentid": ids}).
+		PlaceholderFormat(sq.Dollar)
+
+	timelineEventDeleteQueryString, timelineEventDeleteQueryArgs, err := timelineEventDeleteQuery.ToSql()
+	if err != nil {
+		return fmt.Errorf("error when trying to build the query to delete playbook run timeline events: %s", err.Error())
+	}
+
+	_, err = tx.Exec(timelineEventDeleteQueryString, timelineEventDeleteQueryArgs...)
+	if err != nil {
+		return fmt.Errorf("error when trying to delete playbook run timeline events: %s", err.Error())
+	}
+
 	runDeleteQuery := sq.Delete("ir_incident").
 		Where(sq.Eq{"id": ids}).
 		PlaceholderFormat(sq.Dollar)
@@ -149,59 +245,19 @@ func purgeEmptyPlaybookRuns(db *sql.DB) error {
 		return fmt.Errorf("error when trying to build the query to delete playbook runs: %s", err.Error())
 	}
 
-	_, err = db.Exec(runDeleteQueryString, runDeleteQueryArgs...)
+	_, err = tx.Exec(runDeleteQueryString, runDeleteQueryArgs...)
 	if err != nil {
 		return fmt.Errorf("error when trying to delete playbook runs: %s", err.Error())
+	}
+
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("error when trying to commit the transaction: %s", err.Error())
 	}
 
 	return nil
 }
 
 func purgeDanglingPlaybookData(db *sql.DB) error {
-	if _, err := db.Exec(`
-			DELETE FROM ir_metricconfig
-			  WHERE NOT EXISTS (
-			    SELECT 1
-			    FROM ir_playbook
-			      WHERE ir_playbook.id = ir_metricconfig.playbookid
-			  );
-		`); err != nil {
-		return err
-	}
-
-	if _, err := db.Exec(`
-			DELETE FROM ir_metric
-			  WHERE NOT EXISTS (
-			    SELECT 1
-			    FROM ir_incident
-			      WHERE ir_incident.id = ir_metric.incidentid
-			  );
-		`); err != nil {
-		return err
-	}
-
-	if _, err := db.Exec(`
-			DELETE FROM ir_statusposts
-			  WHERE NOT EXISTS (
-			    SELECT 1
-			    FROM ir_incident
-			      WHERE ir_incident.id = ir_statusposts.incidentid
-			  );
-		`); err != nil {
-		return err
-	}
-
-	if _, err := db.Exec(`
-			DELETE FROM ir_timelineevent
-			  WHERE NOT EXISTS (
-			    SELECT 1
-			    FROM ir_incident
-			      WHERE ir_incident.id = ir_timelineevent.incidentid
-			  );
-		`); err != nil {
-		return err
-	}
-
 	if _, err := db.Exec(`
 			DELETE FROM ir_channelaction
 			  WHERE NOT EXISTS (
