@@ -103,7 +103,7 @@ func (p *Plugin) ExecuteCommand(_ *plugin.Context, args *model.CommandArgs) (*mo
 	config := p.getConfiguration()
 	usersToDelete := filterForUsersByEmails(p.pluginClient, users, config.TargetEmailAddressSuffixes(), config.TargetEmailAddresses())
 
-	var userListFileId string
+	var userListFileID string
 	if len(usersToDelete) > 0 {
 		var userList strings.Builder
 		for _, user := range usersToDelete {
@@ -120,10 +120,10 @@ func (p *Plugin) ExecuteCommand(_ *plugin.Context, args *model.CommandArgs) (*mo
 			}, nil
 		}
 
-		userListFileId = userListFileInfo.Id
+		userListFileID = userListFileInfo.Id
 	}
 
-	go p.runBulkDeleteJob(dryRun, args.UserId, args.ChannelId, usersToDelete, userListFileId)
+	go p.runBulkDeleteJob(dryRun, args.UserId, args.ChannelId, usersToDelete, userListFileID)
 
 	return &model.CommandResponse{
 		ResponseType: model.CommandResponseTypeEphemeral,
