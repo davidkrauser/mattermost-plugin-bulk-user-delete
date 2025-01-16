@@ -7,7 +7,80 @@ import (
 	sq "github.com/Masterminds/squirrel"
 )
 
+func purgeCategoriesWithMissingUsers(db *sql.DB) (err error) {
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("error when trying to begin transaction: %s", err.Error())
+	}
+	defer func() {
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && rollbackErr != sql.ErrTxDone {
+			err = fmt.Errorf("error when trying to rollback transaction: %s on error: %s",
+				rollbackErr.Error(), err.Error())
+		}
+	}()
+
+	rows, err := tx.Query(`
+			SELECT id FROM ir_category
+			  WHERE NOT EXISTS (
+			    SELECT 1
+			    FROM Users
+			      WHERE Users.id = ir_category.userid
+			  );
+		`)
+	if err != nil {
+		return fmt.Errorf("error finding categories for missing users: %s", err.Error())
+	}
+	defer rows.Close()
+
+	ids := []string{}
+	for rows.Next() {
+		var id string
+		if scanErr := rows.Scan(&id); scanErr != nil {
+			return fmt.Errorf("error parsing category IDs: %s", scanErr.Error())
+		}
+		ids = append(ids, id)
+	}
+
+	categoryItemDeleteQuery := sq.Delete("ir_category_item").
+		Where(sq.Eq{"categoryid": ids}).
+		PlaceholderFormat(sq.Dollar)
+
+	categoryItemDeleteQueryString, categoryItemDeleteQueryArgs, err := categoryItemDeleteQuery.ToSql()
+	if err != nil {
+		return fmt.Errorf("error when trying to build the query to delete category items: %s", err.Error())
+	}
+
+	_, err = tx.Exec(categoryItemDeleteQueryString, categoryItemDeleteQueryArgs...)
+	if err != nil {
+		return fmt.Errorf("error when trying to delete playbook category items: %s", err.Error())
+	}
+
+	categoryDeleteQuery := sq.Delete("ir_category").
+		Where(sq.Eq{"id": ids}).
+		PlaceholderFormat(sq.Dollar)
+
+	categoryDeleteQueryString, categoryDeleteQueryArgs, err := categoryDeleteQuery.ToSql()
+	if err != nil {
+		return fmt.Errorf("error when trying to build the query to delete playbook categories: %s", err.Error())
+	}
+
+	_, err = tx.Exec(categoryDeleteQueryString, categoryDeleteQueryArgs...)
+	if err != nil {
+		return fmt.Errorf("error when trying to delete playbook categories: %s", err.Error())
+	}
+
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("error when trying to commit the transaction: %s", err.Error())
+	}
+
+	return nil
+}
+
 func purgeDanglingPlaybookMembers(db *sql.DB) error {
+	if err := purgeCategoriesWithMissingUsers(db); err != nil {
+		return err
+	}
+
 	if _, err := db.Exec(`
 			DELETE FROM ir_category
 			  WHERE NOT EXISTS (
