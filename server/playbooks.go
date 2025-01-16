@@ -82,17 +82,6 @@ func purgeDanglingPlaybookMembers(db *sql.DB) error {
 	}
 
 	if _, err := db.Exec(`
-			DELETE FROM ir_category
-			  WHERE NOT EXISTS (
-			    SELECT 1
-			    FROM Users
-			      WHERE Users.id = ir_category.userid
-			  );
-		`); err != nil {
-		return err
-	}
-
-	if _, err := db.Exec(`
 			DELETE FROM ir_playbookautofollow
 			  WHERE NOT EXISTS (
 			    SELECT 1
