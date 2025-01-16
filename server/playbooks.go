@@ -222,7 +222,7 @@ func purgeEmptyPlaybooks(db *sql.DB) (err error) {
 	return nil
 }
 
-func purgeEmptyPlaybookRuns(db *sql.DB) (err error) {
+func purgeRunsForEmptyPlaybooks(db *sql.DB) (err error) {
 	tx, err := db.Begin()
 	if err != nil {
 		return fmt.Errorf("error when trying to begin transaction: %s", err.Error())
@@ -235,11 +235,11 @@ func purgeEmptyPlaybookRuns(db *sql.DB) (err error) {
 	}()
 
 	rows, err := tx.Query(`
-			SELECT id FROM ir_incident
+			SELECT id FROM ir_playbook
 			  WHERE NOT EXISTS (
 			    SELECT 1
-			    FROM ir_run_participants
-			      WHERE ir_run_participants.incidentid = ir_incident.id
+			    FROM ir_playbookmember
+			      WHERE ir_playbookmember.playbookid = ir_playbook.id
 			  );
 		`)
 	if err != nil {
@@ -247,10 +247,34 @@ func purgeEmptyPlaybookRuns(db *sql.DB) (err error) {
 	}
 	defer rows.Close()
 
-	ids := []string{}
+	playbookIDs := []string{}
 	for rows.Next() {
 		var id string
 		if scanErr := rows.Scan(&id); scanErr != nil {
+			return fmt.Errorf("error parsing board IDs: %s", scanErr.Error())
+		}
+		playbookIDs = append(playbookIDs, id)
+	}
+
+	incidentSelectQuery := sq.Select("id").
+		From("ir_incident").
+		Where(sq.Eq{"playbookid": playbookIDs}).
+		PlaceholderFormat(sq.Dollar)
+
+	incidentSelectQueryString, incidentSelectQueryArgs, err := incidentSelectQuery.ToSql()
+	if err != nil {
+		return fmt.Errorf("error when trying to build the query to select runs for empty playbooks: %s", err.Error())
+	}
+
+	incidentRows, err := tx.Query(incidentSelectQueryString, incidentSelectQueryArgs...)
+	if err != nil {
+		return fmt.Errorf("error when trying to select runs for empty playbooks: %s, %s, %v", err.Error(), incidentSelectQueryString, incidentSelectQueryArgs)
+	}
+
+	ids := []string{}
+	for incidentRows.Next() {
+		var id string
+		if scanErr := incidentRows.Scan(&id); scanErr != nil {
 			return fmt.Errorf("error parsing board IDs: %s", scanErr.Error())
 		}
 		ids = append(ids, id)
@@ -296,6 +320,20 @@ func purgeEmptyPlaybookRuns(db *sql.DB) (err error) {
 	_, err = tx.Exec(timelineEventDeleteQueryString, timelineEventDeleteQueryArgs...)
 	if err != nil {
 		return fmt.Errorf("error when trying to delete playbook run timeline events: %s", err.Error())
+	}
+
+	runParticipantsDeleteQuery := sq.Delete("ir_run_participants").
+		Where(sq.Eq{"incidentid": ids}).
+		PlaceholderFormat(sq.Dollar)
+
+	runParticipantsDeleteQueryString, runParticipantsDeleteQueryArgs, err := runParticipantsDeleteQuery.ToSql()
+	if err != nil {
+		return fmt.Errorf("error when trying to build the query to delete run participants: %s", err.Error())
+	}
+
+	_, err = tx.Exec(runParticipantsDeleteQueryString, runParticipantsDeleteQueryArgs...)
+	if err != nil {
+		return fmt.Errorf("error when trying to delete playbook run participants: %s", err.Error())
 	}
 
 	runDeleteQuery := sq.Delete("ir_incident").
